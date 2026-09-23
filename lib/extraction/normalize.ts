@@ -30,6 +30,7 @@ export interface NormalizedSegment {
   price: number | null
   baggageInfo: string | null
   notes: string | null
+  timezone: string | null
   /** fieldName -> confidence (0-100), only for fields that were auto-extracted */
   confidenceScores: Record<string, number>
   /** field names below CONFIDENCE_REVIEW_THRESHOLD, surfaced for the user to confirm */
@@ -77,6 +78,7 @@ function normalizeSegment(seg: ExtractedSegment): NormalizedSegment {
     price: pick('price', seg.price),
     baggageInfo: pick('baggageInfo', seg.baggageInfo),
     notes: pick('notes', seg.notes),
+    timezone: pick('timezone', seg.timezone),
     confidenceScores,
     fieldsNeedingReview,
   }

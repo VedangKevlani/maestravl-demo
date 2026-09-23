@@ -9,6 +9,8 @@
 // is strictly read-only (see lib/voice/systemPrompt.ts).
 import { prisma } from '@/lib/db'
 import { segmentLabel } from '@/lib/segmentLabel'
+import { sendItineraryUpdatedEmail } from '@/lib/email'
+import { resolveSegmentZones } from '@/lib/dateFormat'
 import type { AgentRun } from '@prisma/client'
 
 export type ConfirmRescheduleResult =
@@ -45,6 +47,8 @@ export async function confirmReschedule(agentRunId: string, accept: boolean): Pr
     return { status: 'rejected', agentRun: updated }
   }
 
+  const changes: { label: string; oldTime: Date | null; newTime: Date; timezone: string | null }[] = []
+
   for (const request of pendingRequests) {
     const segment = request.segment
 
@@ -70,6 +74,13 @@ export async function confirmReschedule(agentRunId: string, accept: boolean): Pr
       },
     })
 
+    changes.push({
+      label: segmentLabel(segment),
+      oldTime: segment.departureTime,
+      newTime: targetTime,
+      timezone: resolveSegmentZones(segment).departure,
+    })
+
     await prisma.rescheduleRequest.update({
       where: { id: request.id },
       data: { status: 'CONFIRMED', respondedAt: new Date() },
@@ -87,9 +98,51 @@ export async function confirmReschedule(agentRunId: string, accept: boolean): Pr
     })
   }
 
+  if (changes.length > 0) await notifyPassengersOfUpdate(agentRunId, run.tripId, changes)
+
   const updated = await prisma.agentRun.update({
     where: { id: agentRunId },
     data: { status: 'CONFIRMED', summary: 'Rescheduled and confirmed — your itinerary is up to date.', completedAt: new Date() },
   })
   return { status: 'confirmed', agentRun: updated }
+}
+
+/**
+ * Emails every passenger on the trip with an address on file once a
+ * reschedule is actually applied. Best-effort, same as the other passenger
+ * notifications: a failed send is logged on the run, never allowed to undo
+ * or fail the confirmation itself.
+ */
+async function notifyPassengersOfUpdate(
+  agentRunId: string,
+  tripId: string,
+  changes: { label: string; oldTime: Date | null; newTime: Date; timezone: string | null }[]
+) {
+  const trip = await prisma.trip.findUnique({ where: { id: tripId }, include: { passengers: true } })
+  if (!trip) return
+  const recipients = trip.passengers.filter((p) => p.email)
+  if (recipients.length === 0) return
+
+  const results: { recipient: string; success: boolean; error?: string }[] = []
+  for (const passenger of recipients) {
+    try {
+      await sendItineraryUpdatedEmail(passenger.email!, { recipientName: passenger.name, tripTitle: trip.title, changes })
+      results.push({ recipient: passenger.email!, success: true })
+    } catch (err) {
+      results.push({ recipient: passenger.email!, success: false, error: err instanceof Error ? err.message : 'Unknown error' })
+    }
+  }
+
+  const anySucceeded = results.some((r) => r.success)
+  await prisma.agentAction.create({
+    data: {
+      agentRunId,
+      segmentId: null,
+      type: 'NOTIFY_PASSENGER',
+      riskLevel: 'LOW',
+      status: anySucceeded ? 'EXECUTED' : 'FAILED',
+      description: anySucceeded ? 'Passengers emailed the updated itinerary.' : 'Failed to email passengers the updated itinerary.',
+      detail: JSON.stringify(results),
+    },
+  })
 }

@@ -169,6 +169,43 @@ export async function sendDisruptionImpactEmail(
   return subject
 }
 
+/** Sent once the passenger confirms a provider-agreed reschedule — the itinerary actually changed, so everyone on the trip should hear the new times, not just the person who clicked Confirm. */
+export async function sendItineraryUpdatedEmail(
+  to: string,
+  opts: {
+    recipientName: string
+    tripTitle: string
+    changes: { label: string; oldTime: Date | null; newTime: Date; timezone: string | null }[]
+  }
+) {
+  const from = process.env.EMAIL_FROM ?? DEFAULT_FROM
+  const subject = `${opts.tripTitle}: itinerary updated`
+
+  const changesHtml = opts.changes
+    .map(
+      (c) =>
+        `<li style="margin-bottom:8px;"><strong>${escapeHtml(c.label)}</strong> — now ${escapeHtml(formatFriendlyTime(c.newTime, c.timezone))}${
+          c.oldTime ? ` <span style="color:#8b8f96;">(was ${escapeHtml(formatFriendlyTime(c.oldTime, c.timezone))})</span>` : ''
+        }</li>`
+    )
+    .join('')
+
+  const html = wrapEmail({
+    preheader: subject,
+    bodyHtml: `
+      ${emailHeading(subject)}
+      <p style="margin:0 0 14px;">Hi ${escapeHtml(opts.recipientName)}, the provider confirmed a new time and <strong>${escapeHtml(opts.tripTitle)}</strong> has been updated:</p>
+      <ul style="margin:0 0 4px; padding-left:20px;">${changesHtml}</ul>
+      <p style="margin:16px 0 0; font-size:13px; color:#8b8f96;">Maestravl is still watching the rest of your trip and will let you know if anything else changes.</p>
+    `,
+  })
+
+  const { error } = await resend.emails.send({ from, to, subject, html })
+
+  if (error) throw new Error(error.message)
+  return subject
+}
+
 /**
  * Sends an agent-composed message to a provider on the passenger's behalf
  * (see lib/agents/message.ts for the templates and lib/agents/orchestrator.ts

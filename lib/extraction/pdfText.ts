@@ -28,9 +28,16 @@ export async function extractNativePdfText(bytes: Uint8Array): Promise<string> {
     for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
       const page = await doc.getPage(pageNum)
       const content = await page.getTextContent()
+      // Keep the PDF's own line breaks (pdf.js marks the last item on each
+      // visual line with hasEOL). Joining everything with spaces collapsed a
+      // whole page onto one line, which made "Label: value" lines and
+      // per-booking sections impossible to tell apart — every booking's
+      // details ran together, so only flights (found by flight number
+      // alone) ever survived extraction.
       const pageText = content.items
-        .map((item) => ('str' in item ? item.str : ''))
-        .join(' ')
+        .map((item) => ('str' in item ? item.str + (item.hasEOL ? '\n' : ' ') : ''))
+        .join('')
+        .replace(/[ \t]+\n/g, '\n')
       pageTexts.push(pageText)
     }
     return pageTexts.join('\n\n').trim()

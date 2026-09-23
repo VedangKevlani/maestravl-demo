@@ -37,6 +37,8 @@ export interface ExtractedSegment {
   price: ExtractedField<number>
   baggageInfo: ExtractedField<string>
   notes: ExtractedField<string>
+  /** IANA zone the segment's wall-clock times were interpreted in (e.g. "America/New_York"). */
+  timezone: ExtractedField<string>
 }
 
 export interface ExtractedItinerary {

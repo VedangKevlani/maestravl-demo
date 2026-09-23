@@ -98,6 +98,7 @@ export async function POST(req: Request) {
           currency: seg.currency,
           price: seg.price,
           notes: seg.notes,
+          timezone: seg.timezone,
           baggageInfo: seg.baggageInfo,
           confidenceScores: JSON.stringify(scaledConfidence),
         },
@@ -112,9 +113,13 @@ export async function POST(req: Request) {
     // Create passenger records for any names the parser found, skipping duplicates already on the trip.
     const existingPassengers = await prisma.passenger.findMany({ where: { tripId } })
     const existingNames = new Set(existingPassengers.map((p) => p.name.toLowerCase()))
+    let hasPrimary = existingPassengers.some((p) => p.isPrimary)
     for (const name of normalized.passengerNames) {
       if (existingNames.has(name.toLowerCase())) continue
-      await prisma.passenger.create({ data: { tripId, name, isPrimary: existingPassengers.length === 0 } })
+      // Only the first passenger on a trip is its primary traveller — this
+      // used to mark every name found in the document as primary.
+      await prisma.passenger.create({ data: { tripId, name, isPrimary: !hasPrimary } })
+      hasPrimary = true
       existingNames.add(name.toLowerCase())
     }
 

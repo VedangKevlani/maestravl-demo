@@ -27,6 +27,7 @@ export const AIRPORTS: Record<string, { name: string; city: string; country: str
   SDQ: { name: 'Las Américas International', city: 'Santo Domingo', country: 'Dominican Republic', lat: 18.4297, lng: -69.6689, timezone: 'America/Santo_Domingo' },
   MIA: { name: 'Miami International', city: 'Miami', country: 'USA', lat: 25.7959, lng: -80.2870, timezone: 'America/New_York' },
   FLL: { name: 'Fort Lauderdale–Hollywood International', city: 'Fort Lauderdale', country: 'USA', lat: 26.0726, lng: -80.1527, timezone: 'America/New_York' },
+  BOS: { name: 'Logan International', city: 'Boston', country: 'USA', lat: 42.3656, lng: -71.0096, timezone: 'America/New_York' },
   JFK: { name: 'John F. Kennedy International', city: 'New York', country: 'USA', lat: 40.6413, lng: -73.7781, timezone: 'America/New_York' },
   EWR: { name: 'Newark Liberty International', city: 'Newark', country: 'USA', lat: 40.6895, lng: -74.1745, timezone: 'America/New_York' },
   ATL: { name: 'Hartsfield–Jackson Atlanta International', city: 'Atlanta', country: 'USA', lat: 33.6407, lng: -84.4277, timezone: 'America/New_York' },

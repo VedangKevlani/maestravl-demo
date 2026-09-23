@@ -3,6 +3,7 @@ import { sendStatusChangeEmail } from '@/lib/email'
 import { sendStatusChangeText, isTextChannelConfigured, type TextChannel } from '@/lib/sms'
 import { getAdapterForTransportType } from './registry'
 import { handleDisruptionDetection } from '@/lib/agents/detect'
+import { classifyDisruption } from '@/lib/agents/classify'
 import { segmentLabel } from '@/lib/segmentLabel'
 import type { MonitorableSegment, MonitoringCheckResult, MonitoringCheckStatus } from './types'
 import type { TransportType } from '@/lib/constants'
@@ -265,13 +266,28 @@ export async function runMonitoringCheck(segmentId: string) {
   // the passenger to hear about by email, and this segment's monitoring is
   // about to pause anyway (see isMonitoringComplete above), so there's
   // nothing further to report on it either.
-  if (previousStatus && result.status !== previousStatus && result.status !== 'UNKNOWN' && result.status !== 'ARRIVED') {
-    await notifyPassengersOfStatusChange(segmentId, previousStatus, result.status)
+  // A segment that was *already* disrupted the first time Maestravl looked
+  // (e.g. an itinerary uploaded for a flight that's already running late)
+  // never produced a status "change" — the upload's first check is only a
+  // baseline, and every later check read DELAYED -> DELAYED — so it was
+  // never escalated at all. The segment's own status is what the passenger
+  // has actually been told; if a disruptive reading hasn't reached it yet,
+  // treat it as a change from there. detect.ts sets the segment's status
+  // when it records the disruption, so this fires once, not every check.
+  const unreportedDisruption =
+    previousStatus !== null &&
+    result.status === previousStatus &&
+    segment.status !== result.status &&
+    classifyDisruption(result.status, result.delayMinutes ?? null) !== null
+  const effectivePreviousStatus = unreportedDisruption ? segment.status : previousStatus
+
+  if (effectivePreviousStatus && (result.status !== previousStatus || unreportedDisruption) && result.status !== 'UNKNOWN' && result.status !== 'ARRIVED') {
+    await notifyPassengersOfStatusChange(segmentId, effectivePreviousStatus, result.status)
     // Disruptive changes (a real delay or a cancellation) additionally
     // start a recovery AgentRun — see lib/agents/detect.ts. Routine
     // progression (BOARDING/DEPARTED/back to ON_TIME) is already covered by
     // the notification above and isn't disruptive on its own.
-    await handleDisruptionDetection(segment, previousStatus, result)
+    await handleDisruptionDetection(segment, effectivePreviousStatus, result)
   }
 
   return record
