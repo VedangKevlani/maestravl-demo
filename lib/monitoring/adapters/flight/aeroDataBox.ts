@@ -119,8 +119,12 @@ export const aeroDataBoxAdapter: FlightProviderAdapter = {
       minutesBetween(flight.departure?.scheduledTime, flight.departure?.revisedTime) ??
       minutesBetween(flight.arrival?.scheduledTime, flight.arrival?.revisedTime ?? flight.arrival?.predictedTime)
 
+    const mapped = mapStatus(flight.status)
     return {
-      status: mapStatus(flight.status),
+      // "Expected" only means the flight hasn't departed yet — AeroDataBox
+      // keeps using it for a flight whose revised departure is hours late.
+      // A positive delay on a not-yet-departed flight is a delay.
+      status: mapped === 'ON_TIME' && delayMinutes && delayMinutes > 0 ? 'DELAYED' : mapped,
       delayMinutes: delayMinutes && delayMinutes > 0 ? delayMinutes : undefined,
       gate: flight.departure?.gate ?? undefined,
       terminal: flight.departure?.terminal ?? undefined,
