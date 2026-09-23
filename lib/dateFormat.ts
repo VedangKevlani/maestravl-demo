@@ -76,6 +76,12 @@ type Airport = (typeof AIRPORTS)[string]
  * no arrival-local-time figure is honest; assuming arrival shares
  * departure's zone would silently reintroduce the same class of bug this
  * file exists to fix.
+ *
+ * The exception is a segment with no arrival code at all (a hotel's
+ * check-out, a train or boat between named places): there is no second
+ * endpoint to look up, and the segment's own `timezone` — set when the
+ * itinerary was extracted, or entered by hand — is the zone its times were
+ * written in. Falling back to null there rendered the time in UTC.
  */
 export function resolveSegmentZones(segment: LocatableSegment): { departure: string | null; arrival: string | null } {
   const departureAirport: Airport | null = segment.departureLocationCode ? lookupAirport(segment.departureLocationCode) : null
@@ -83,7 +89,7 @@ export function resolveSegmentZones(segment: LocatableSegment): { departure: str
 
   return {
     departure: departureAirport?.timezone ?? segment.timezone ?? null,
-    arrival: arrivalAirport?.timezone ?? null,
+    arrival: arrivalAirport?.timezone ?? (segment.arrivalLocationCode ? null : segment.timezone) ?? null,
   }
 }
 

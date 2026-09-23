@@ -53,6 +53,11 @@ describe('resolveSegmentZones', () => {
     expect(zones.arrival).toBeNull()
   })
 
+  it('uses the segment timezone for the arrival side of a segment with no arrival code (hotel check-out, train between named stations)', () => {
+    const zones = resolveSegmentZones({ departureLocationCode: null, arrivalLocationCode: null, timezone: 'America/Los_Angeles' })
+    expect(zones).toEqual({ departure: 'America/Los_Angeles', arrival: 'America/Los_Angeles' })
+  })
+
   it('returns nulls for a segment with no resolvable location at all', () => {
     const zones = resolveSegmentZones({ departureLocationCode: null, arrivalLocationCode: null, timezone: null })
     expect(zones).toEqual({ departure: null, arrival: null })
