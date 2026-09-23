@@ -9,20 +9,31 @@
 import { segmentLabel } from '@/lib/segmentLabel'
 import { STATUS_COPY, actionLabel } from '@/lib/agents/statusCopy'
 import { resolveSegment } from './resolveSegment'
+import { formatFriendlyTime, resolveSegmentZones } from '@/lib/dateFormat'
 import type { VoiceContext, VoiceSegment } from './types'
 
+// Every time is given to the model twice: the raw UTC instant (for "how
+// long until", ordering, etc.) and the local wall-clock time already
+// rendered in the segment's own zone. Without `localTime` the model read the
+// UTC instant aloud — a 10:05 AM Los Angeles train became "5:55 PM" and an
+// 8:30 PM dinner "3:30 on the 24th" (found live 2026-09-23).
+function timeFields(time: Date | null, zone: string | null) {
+  return { time: time?.toISOString() ?? null, localTime: time ? formatFriendlyTime(time, zone) : null }
+}
+
 function describeSegment(segment: VoiceSegment) {
+  const zones = resolveSegmentZones(segment)
   return {
     label: segmentLabel(segment),
     transportType: segment.transportType,
     status: segment.status,
     departure:
       segment.departureLocation || segment.departureTime
-        ? { location: segment.departureLocation, code: segment.departureLocationCode, time: segment.departureTime?.toISOString() ?? null }
+        ? { location: segment.departureLocation, code: segment.departureLocationCode, ...timeFields(segment.departureTime, zones.departure) }
         : null,
     arrival:
       segment.arrivalLocation || segment.arrivalTime
-        ? { location: segment.arrivalLocation, code: segment.arrivalLocationCode, time: segment.arrivalTime?.toISOString() ?? null }
+        ? { location: segment.arrivalLocation, code: segment.arrivalLocationCode, ...timeFields(segment.arrivalTime, zones.arrival) }
         : null,
     confirmationNumber: segment.confirmationNumber,
     notes: segment.notes,

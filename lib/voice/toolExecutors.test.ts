@@ -141,3 +141,19 @@ describe('executeGetRecoveryActivity', () => {
     expect(result.found).toBe(false)
   })
 })
+
+describe('local times for the assistant', () => {
+  it('gives each time in the segment’s own zone, not UTC', () => {
+    const train = makeSegment({
+      transportType: 'TRAIN', provider: 'Amtrak', identifier: 'Pacific Surfliner',
+      departureLocation: 'Los Angeles Union Station', departureLocationCode: null,
+      arrivalLocation: 'San Diego Santa Fe Depot', arrivalLocationCode: null,
+      departureTime: new Date('2026-09-24T17:05:00Z'), arrivalTime: new Date('2026-09-24T19:55:00Z'),
+      timezone: 'America/Los_Angeles',
+    })
+    const seg = executeGetItinerary(makeContext({ segments: [train] })).segments[0]
+    expect(seg.departure?.localTime).toContain('10:05')
+    expect(seg.departure?.localTime).toContain('Los Angeles')
+    expect(seg.arrival?.localTime).toContain('12:55')
+  })
+})
