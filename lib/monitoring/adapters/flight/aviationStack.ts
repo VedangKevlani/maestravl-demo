@@ -12,12 +12,22 @@ function buildTrackingKey(segment: MonitorableSegment): string | null {
   return `${segment.identifier}:${segment.departureTime.toISOString().slice(0, 10)}`
 }
 
-function mapStatus(flightStatus: string | undefined, delayMinutes: number | undefined): MonitoringCheckStatus {
+// AviationStack's free tier reports a flight as "active" for much of its
+// scheduled day — including while it's still sitting at the gate, delayed
+// (confirmed live 2026-09-23: AA1578 BOS-LAX was "active" with departure
+// actual/actual_runway null and no live position, an hour before it pushed
+// back). So "active" only counts as DEPARTED when the flight has actually
+// left — an actual departure/takeoff time or a live position; otherwise it's
+// read the same as "scheduled".
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function mapStatus(flightStatus: string | undefined, delayMinutes: number | undefined, flight?: any): MonitoringCheckStatus {
+  const hasLeft = Boolean(flight?.departure?.actual || flight?.departure?.actual_runway || flight?.live)
   switch (flightStatus) {
     case 'scheduled':
       return delayMinutes && delayMinutes > 0 ? 'DELAYED' : 'ON_TIME'
     case 'active':
-      return 'DEPARTED'
+      if (!flight || hasLeft) return 'DEPARTED'
+      return delayMinutes && delayMinutes > 0 ? 'DELAYED' : 'ON_TIME'
     case 'landed':
       return 'ARRIVED'
     case 'cancelled':
@@ -103,7 +113,7 @@ export const aviationStackAdapter: FlightProviderAdapter = {
     const delayMinutes: number | undefined = flight.departure?.delay ?? flight.arrival?.delay ?? undefined
 
     return {
-      status: mapStatus(flight.flight_status, delayMinutes),
+      status: mapStatus(flight.flight_status, delayMinutes, flight),
       delayMinutes,
       gate: flight.departure?.gate ?? undefined,
       terminal: flight.departure?.terminal ?? undefined,
