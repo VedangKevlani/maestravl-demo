@@ -20,9 +20,11 @@ jobs:
     steps:
       - name: Trigger monitoring check
         run: |
+          # Demo deployment (maestravl-demo repo) — set the MONITORING_BASE_URL
+          # repository variable if the Vercel URL differs. For production:
           # www.maestravl.com, not the bare apex — maestravl.com 308-redirects
           # to www, and this curl doesn't follow redirects (-L), so pointing
           # at the apex would "succeed" without ever actually hitting the
           # monitoring route.
-          curl -sf -X GET "https://www.maestravl.com/api/cron/monitoring" \
+          curl -sf -X GET "${{ vars.MONITORING_BASE_URL || 'https://maestravl-demo.vercel.app' }}/api/cron/monitoring" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
